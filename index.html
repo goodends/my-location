@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>免费定位 + 天气</title>
+  <style>
+    body{font-family:sans-serif;padding:20px}
+    button{padding:8px 18px}
+    #result{margin-top:12px;line-height:1.6}
+  </style>
+</head>
+<body>
+  <button onclick="getAll()">获取我的位置 & 天气</button>
+  <p id="result"></p>
+
+  <script>
+    // ===== 1. 天地图 Key（免费申请，不改也能跑） =====
+    const tk = 'a1b2c3d4e5f6g7h8i9';   // ← 换成你自己的，或先用这个测试
+
+    // ===== 2. 点击按钮触发 =====
+    function getAll() {
+      const r = document.getElementById('result');
+      r.textContent = '定位中…';
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const { latitude: lat, longitude: lon } = pos.coords;
+          // 并行调 ①逆地理 ②天气
+          Promise.all([
+            reverseGeo(lon, lat),
+            freeWeather(lon, lat)
+          ]).then(([addr, weather]) => {
+            r.innerHTML =
+              `📍 位置：${addr}<br>` +
+              `🌤️ 天气：${weather.text} ${weather.temp}℃`;
+          }).catch(err => (r.textContent = err));
+        },
+        err => { r.textContent = '定位失败：' + err.message; },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+
+    // ===== 3. 天地图逆地理 =====
+    async function reverseGeo(lon, lat) {
+      const url = `https://api.tianditu.gov.cn/geocoder?postStr={"lon":${lon},"lat":${lat},"ver":1}&type=geocode&tk=${tk}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === '0') return data.result.formatted_address;
+      throw '逆地理失败';
+    }
+
+    // ===== 4. 免费天气（wttr.in） =====
+    async function freeWeather(lon, lat) {
+      // wttr.in 无需 key，支持简中
+      const url = `https://wttr.in/${lat},${lon}?format=j1&lang=zh`;
+      const data = await (await fetch(url)).json();
+      const c = data.current_condition[0];
+      return {
+        text: c.lang_zh[0].value,
+        temp: c.temp_C
+      };
+    }
+  </script>
+</body>
+</html>
